@@ -620,6 +620,7 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
     },
 ]
 
+
 class ToolExecutionEngine:
     @staticmethod
     def execute(
@@ -648,16 +649,12 @@ class ToolExecutionEngine:
         if tool_name == "get_cluster_state":
             nodes_ready = sum(1 for n in state.nodes.values() if n.status == "Ready")
             pods_running = sum(1 for p in state.pods.values() if p.status_summary == "Running")
-            output = (
-                f"Cluster: {state.name}
-"
-                f"Nodes: {nodes_ready}/{len(state.nodes)} Ready
-"
-                f"Pods: {pods_running}/{len(state.pods)} Running
-"
-                f"Namespaces: {', '.join(state.namespaces)}
-"
-            )
+            output = "\n".join([
+                f"Cluster: {state.name}",
+                f"Nodes: {nodes_ready}/{len(state.nodes)} Ready",
+                f"Pods: {pods_running}/{len(state.pods)} Running",
+                f"Namespaces: {', '.join(state.namespaces)}",
+            ])
             return output, False, risk, InformationGain.LOW
 
         elif tool_name == "get_nodes":
@@ -667,8 +664,7 @@ class ToolExecutionEngine:
                 if not n.ready_condition:
                     status = "NotReady"
                 lines.append(f"{n.name:<9} {status:<8} <none>   42d   v1.30.2")
-            return "
-".join(lines), False, risk, InformationGain.MEDIUM
+            return "\n".join(lines), False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_node":
             node_name = args.get("node_name", "node-1")
@@ -681,32 +677,20 @@ class ToolExecutionEngine:
                 f"  DiskPressure:     {node.disk_pressure}",
                 f"  PIDPressure:      {node.pid_pressure}",
             ]
-            output = (
-                f"Name:               {node.name}
-"
-                f"Status:             {node.status}
-"
-                f"Unschedulable:      {node.unschedulable}
-"
-                f"Conditions:
-" + "
-".join(cond_lines) + "
-"
-                f"Capacity:
-"
-                f"  cpu:              {node.capacity_cpu}
-"
-                f"  memory:           {node.capacity_memory}
-"
-                f"  ephemeral-storage:{node.capacity_storage}
-"
-                f"Allocatable:
-"
-                f"  cpu:              {node.allocatable_cpu}
-"
-                f"  memory:           {node.allocatable_memory}
-"
-            )
+            output = "\n".join([
+                f"Name:               {node.name}",
+                f"Status:             {node.status}",
+                f"Unschedulable:      {node.unschedulable}",
+                "Conditions:",
+                *cond_lines,
+                "Capacity:",
+                f"  cpu:              {node.capacity_cpu}",
+                f"  memory:           {node.capacity_memory}",
+                f"  ephemeral-storage:{node.capacity_storage}",
+                "Allocatable:",
+                f"  cpu:              {node.allocatable_cpu}",
+                f"  memory:           {node.allocatable_memory}",
+            ])
             return output, False, risk, InformationGain.HIGH if (node.memory_pressure or node.disk_pressure) else InformationGain.MEDIUM
 
         elif tool_name == "get_node_metrics":
@@ -715,8 +699,7 @@ class ToolExecutionEngine:
                 cpu_cores = f"{n.usage_cpu_millicores}m"
                 mem_mb = f"{n.usage_memory_mb}Mi"
                 lines.append(f"{n.name:<9} {cpu_cores:<12} 31%    {mem_mb:<15} {int(n.usage_memory_mb/16000*100)}%")
-            return "
-".join(lines), False, risk, InformationGain.MEDIUM
+            return "\n".join(lines), False, risk, InformationGain.MEDIUM
 
         elif tool_name == "list_pods":
             lines = ["NAME                                READY   STATUS             RESTARTS   AGE"]
@@ -724,8 +707,7 @@ class ToolExecutionEngine:
                 if ns and ns != "all" and p.namespace != ns:
                     continue
                 lines.append(f"{p.name:<35} {p.ready_summary:<7} {p.status_summary:<18} {p.restarts:<10} {p.age}")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_pod":
             pod_name = args.get("pod_name", "")
@@ -737,22 +719,15 @@ class ToolExecutionEngine:
                         break
             if not pod:
                 return f"Error from server (NotFound): pods '{pod_name}' not found", False, risk, InformationGain.LOW
-            output = (
-                f"Name:         {pod.name}
-"
-                f"Namespace:    {pod.namespace}
-"
-                f"Node:         {pod.node_name}
-"
-                f"Status:       {pod.status_summary}
-"
-                f"IP:           {pod.ip}
-"
-                f"QoS Class:    {pod.qos_class}
-"
-                f"Restarts:     {pod.restarts}
-"
-            )
+            output = "\n".join([
+                f"Name:         {pod.name}",
+                f"Namespace:    {pod.namespace}",
+                f"Node:         {pod.node_name}",
+                f"Status:       {pod.status_summary}",
+                f"IP:           {pod.ip}",
+                f"QoS Class:    {pod.qos_class}",
+                f"Restarts:     {pod.restarts}",
+            ])
             return output, False, risk, InformationGain.MEDIUM
 
         elif tool_name == "describe_pod":
@@ -770,66 +745,43 @@ class ToolExecutionEngine:
             for c in pod.containers:
                 last_state_str = "    None"
                 if c.last_state:
-                    last_state_str = (
-                        f"    Terminated:
-"
-                        f"      Reason:       {c.last_state.reason}
-"
-                        f"      Exit Code:    {c.last_state.exit_code}
-"
-                        f"      Finished:     12m ago"
-                    )
-                c_info.append(
-                    f"  {c.name}:
-"
-                    f"    Image:          {c.image}
-"
-                    f"    State:          {c.current_state.state} ({c.current_state.reason or 'Normal'})
-"
-                    f"    Last State:
-{last_state_str}
-"
-                    f"    Ready:          {c.ready}
-"
-                    f"    Restart Count:  {c.restart_count}
-"
-                    f"    Limits:
-"
-                    f"      cpu:          {c.cpu_limit}
-"
-                    f"      memory:       {c.memory_limit}
-"
-                    f"    Requests:
-"
-                    f"      cpu:          {c.cpu_request}
-"
+                    last_state_str = "\n".join([
+                        "    Terminated:",
+                        f"      Reason:       {c.last_state.reason}",
+                        f"      Exit Code:    {c.last_state.exit_code}",
+                        "      Finished:     12m ago"
+                    ])
+                c_info.extend([
+                    f"  {c.name}:",
+                    f"    Image:          {c.image}",
+                    f"    State:          {c.current_state.state} ({c.current_state.reason or 'Normal'})",
+                    f"    Last State:\n{last_state_str}",
+                    f"    Ready:          {c.ready}",
+                    f"    Restart Count:  {c.restart_count}",
+                    "    Limits:",
+                    f"      cpu:          {c.cpu_limit}",
+                    f"      memory:       {c.memory_limit}",
+                    "    Requests:",
+                    f"      cpu:          {c.cpu_request}",
                     f"      memory:       {c.memory_request}"
-                )
+                ])
 
             ev_lines = []
             for ev in state.events:
                 if pod.name in ev.involved_object:
                     ev_lines.append(f"  {ev.event_type:<7}  {ev.reason:<14}  {ev.message}")
 
-            output = (
-                f"Name:             {pod.name}
-"
-                f"Namespace:        {pod.namespace}
-"
-                f"Node:             {pod.node_name}
-"
-                f"Status:           {pod.status_summary}
-"
-                f"QoS Class:        {pod.qos_class}
-"
-                f"Containers:
-" + "
-".join(c_info) + "
-"
-                f"Events:
-" + ("
-".join(ev_lines) if ev_lines else "  <none>")
-            )
+            output = "\n".join([
+                f"Name:             {pod.name}",
+                f"Namespace:        {pod.namespace}",
+                f"Node:             {pod.node_name}",
+                f"Status:           {pod.status_summary}",
+                f"QoS Class:        {pod.qos_class}",
+                "Containers:",
+                *c_info,
+                "Events:",
+                *(ev_lines if ev_lines else ["  <none>"])
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_pod_metrics":
@@ -838,8 +790,7 @@ class ToolExecutionEngine:
                 if ns and ns != "all" and p.namespace != ns:
                     continue
                 lines.append(f"{p.name:<35} {p.cpu_usage_millicores}m               {p.memory_usage_mb}Mi")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_pod_logs":
             pod_name = args.get("pod_name", "")
@@ -852,10 +803,8 @@ class ToolExecutionEngine:
             if not pod:
                 return f"Error from server (NotFound): pods '{pod_name}' not found", False, risk, InformationGain.LOW
             if pod.logs:
-                return "
-".join(pod.logs), False, risk, InformationGain.HIGH
-            return "2026-09-24T02:00:10.124Z INFO [server] service starting on :8080
-2026-09-24T02:00:10.890Z INFO [health] readiness probe initialized", False, risk, InformationGain.MEDIUM
+                return "\n".join(pod.logs), False, risk, InformationGain.HIGH
+            return "2026-09-24T02:00:10.124Z INFO [server] service starting on :8080\n2026-09-24T02:00:10.890Z INFO [health] readiness probe initialized", False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_previous_pod_logs":
             pod_name = args.get("pod_name", "")
@@ -868,10 +817,8 @@ class ToolExecutionEngine:
             if not pod:
                 return f"Error from server (NotFound): pods '{pod_name}' not found", False, risk, InformationGain.LOW
             if pod.previous_logs:
-                return "
-".join(pod.previous_logs), False, risk, InformationGain.HIGH
-            return "fatal error: runtime: out of memory allocating 536870912 bytes
-Process terminated with signal SIGKILL (exit code 137)", False, risk, InformationGain.HIGH
+                return "\n".join(pod.previous_logs), False, risk, InformationGain.HIGH
+            return "fatal error: runtime: out of memory allocating 536870912 bytes\nProcess terminated with signal SIGKILL (exit code 137)", False, risk, InformationGain.HIGH
 
         elif tool_name in ["get_events", "get_namespace_events", "get_cluster_events"]:
             lines = ["LAST SEEN   TYPE      REASON              OBJECT                         MESSAGE"]
@@ -879,8 +826,7 @@ Process terminated with signal SIGKILL (exit code 137)", False, risk, Informatio
                 if tool_name == "get_namespace_events" and ns and ns not in ev.involved_object:
                     continue
                 lines.append(f"{ev.timestamp_str:<11} {ev.event_type:<9} {ev.reason:<19} {ev.involved_object:<30} {ev.message}")
-            return "
-".join(lines) if len(lines) > 1 else "No events found.", False, risk, InformationGain.HIGH
+            return "\n".join(lines) if len(lines) > 1 else "No events found.", False, risk, InformationGain.HIGH
 
         elif tool_name == "get_deployment":
             dep_name = args.get("deployment_name", "")
@@ -892,30 +838,22 @@ Process terminated with signal SIGKILL (exit code 137)", False, risk, Informatio
                         break
             if not dep:
                 return f"Error from server (NotFound): deployments.apps '{dep_name}' not found", False, risk, InformationGain.LOW
-            output = (
-                f"Name:                   {dep.name}
-"
-                f"Namespace:              {dep.namespace}
-"
-                f"Replicas:               {dep.replicas} desired | {dep.updated_replicas} updated | {dep.ready_replicas} total | {dep.available_replicas} available
-"
-                f"Selector:               {json.dumps(dep.selector_labels)}
-"
-                f"Image:                  {dep.image}
-"
-                f"Current Revision:       {dep.revision}
-"
-                f"Rollout Status:         {dep.rollout_status}
-"
-            )
+            output = "\n".join([
+                f"Name:                   {dep.name}",
+                f"Namespace:              {dep.namespace}",
+                f"Replicas:               {dep.replicas} desired | {dep.updated_replicas} updated | {dep.ready_replicas} total | {dep.available_replicas} available",
+                f"Selector:               {json.dumps(dep.selector_labels)}",
+                f"Image:                  {dep.image}",
+                f"Current Revision:       {dep.revision}",
+                f"Rollout Status:         {dep.rollout_status}",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_replicasets":
             lines = ["NAME                         DESIRED   CURRENT   READY   AGE   IMAGE"]
             for rs in state.replicasets.values():
                 lines.append(f"{rs.name:<28} {rs.replicas:<9} {rs.replicas:<9} {rs.ready_replicas:<7} 18m   {rs.image}")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_rollout_status":
             dep_name = args.get("deployment_name", "")
@@ -927,19 +865,14 @@ Process terminated with signal SIGKILL (exit code 137)", False, risk, Informatio
         elif tool_name == "get_rollout_history":
             dep_name = args.get("deployment_name", "")
             dep = state.deployments.get(dep_name)
-            rev = dep.revision if dep else 2
             prev_img = dep.previous_revision_image if dep else "v1.1.9"
             curr_img = dep.image if dep else "v1.2.0"
-            output = (
-                f"deployment.apps/{dep_name}
-"
-                f"REVISION  CHANGE-CAUSE
-"
-                f"1         Image update to {prev_img} (stable baseline)
-"
-                f"2         Image update to {curr_img} (deployed 14 minutes ago)
-"
-            )
+            output = "\n".join([
+                f"deployment.apps/{dep_name}",
+                "REVISION  CHANGE-CAUSE",
+                f"1         Image update to {prev_img} (stable baseline)",
+                f"2         Image update to {curr_img} (deployed 14 minutes ago)",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_service":
@@ -952,22 +885,15 @@ Process terminated with signal SIGKILL (exit code 137)", False, risk, Informatio
                         break
             if not svc:
                 return f"Error from server (NotFound): services '{svc_name}' not found", False, risk, InformationGain.LOW
-            output = (
-                f"Name:              {svc.name}
-"
-                f"Namespace:         {svc.namespace}
-"
-                f"Type:              {svc.service_type}
-"
-                f"IP:                {svc.cluster_ip}
-"
-                f"Port:              http 80/TCP
-"
-                f"TargetPort:        8080/TCP
-"
-                f"Selector:          {json.dumps(svc.selector)}
-"
-            )
+            output = "\n".join([
+                f"Name:              {svc.name}",
+                f"Namespace:         {svc.namespace}",
+                f"Type:              {svc.service_type}",
+                f"IP:                {svc.cluster_ip}",
+                "Port:              http 80/TCP",
+                "TargetPort:        8080/TCP",
+                f"Selector:          {json.dumps(svc.selector)}",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_endpoints":
@@ -981,23 +907,19 @@ Process terminated with signal SIGKILL (exit code 137)", False, risk, Informatio
             if not ep:
                 return f"Error from server (NotFound): endpoints '{svc_name}' not found", False, risk, InformationGain.LOW
             if not ep.subsets:
-                return f"NAME                  ENDPOINTS
-{svc_name:<21} <none>", False, risk, InformationGain.HIGH
+                return f"NAME                  ENDPOINTS\n{svc_name:<21} <none>", False, risk, InformationGain.HIGH
             addrs = [f"{a['ip']}:{a.get('port', 8080)}" for sub in ep.subsets for a in sub.get("addresses", [])]
-            return f"NAME                  ENDPOINTS
-{svc_name:<21} {', '.join(addrs)}", False, risk, InformationGain.HIGH
+            return f"NAME                  ENDPOINTS\n{svc_name:<21} {', '.join(addrs)}", False, risk, InformationGain.HIGH
 
         elif tool_name == "get_endpointslices":
-            return "NAME                       ADDRESSTYPE   PORTS   ENDPOINTS                  AGE
-payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m", False, risk, InformationGain.MEDIUM
+            return "NAME                       ADDRESSTYPE   PORTS   ENDPOINTS                  AGE\npayments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m", False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_ingress":
             lines = ["NAME             CLASS    HOSTS                   ADDRESS        PORTS     AGE"]
             for ing in state.ingresses.values():
                 hosts = ",".join(ing.hosts)
                 lines.append(f"{ing.name:<16} nginx    {hosts:<23} 198.51.100.2   80, 443   14d")
-            return "
-".join(lines), False, risk, InformationGain.MEDIUM
+            return "\n".join(lines), False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_network_policies":
             if not state.network_policies:
@@ -1006,15 +928,13 @@ payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m"
             for np in state.network_policies.values():
                 sel = json.dumps(np.pod_selector)
                 lines.append(f"{np.name:<26} {sel:<22} 5d")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_hpa":
             lines = ["NAME             REFERENCE                   TARGETS         MINPODS   MAXPODS   REPLICAS   AGE"]
             for h in state.hpas.values():
                 lines.append(f"{h.name:<16} Deployment/{h.reference_name:<16} {h.current_cpu_percent}%/{h.target_cpu_percent}%   {h.min_replicas:<9} {h.max_replicas:<9} {h.current_replicas:<10} 2d")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_pdb":
             lines = ["NAME             MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE"]
@@ -1022,8 +942,7 @@ payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m"
                 min_a = p.min_available if p.min_available is not None else "N/A"
                 max_u = p.max_unavailable if p.max_unavailable is not None else "N/A"
                 lines.append(f"{p.name:<16} {min_a:<15} {max_u:<17} {p.disruptions_allowed:<21} 5d")
-            return "
-".join(lines), False, risk, InformationGain.MEDIUM
+            return "\n".join(lines), False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_resource_quota":
             lines = ["NAME             RESOURCE         REQUESTED   LIMIT"]
@@ -1031,15 +950,13 @@ payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m"
                 for k, v in rq.hard.items():
                     used = rq.used.get(k, "0")
                     lines.append(f"{rq.name:<16} {k:<16} {used:<11} {v}")
-            return "
-".join(lines) if len(lines) > 1 else "No resource quotas found in namespace.", False, risk, InformationGain.HIGH
+            return "\n".join(lines) if len(lines) > 1 else "No resource quotas found in namespace.", False, risk, InformationGain.HIGH
 
         elif tool_name == "get_limit_range":
             lines = ["NAME             RESOURCE   DEFAULT_REQ   DEFAULT_LIM   MIN   MAX"]
             for lr in state.limit_ranges.values():
                 lines.append(f"{lr.name:<16} memory     256Mi         512Mi         64Mi  4Gi")
-            return "
-".join(lines) if len(lines) > 1 else "No limit ranges found in namespace.", False, risk, InformationGain.MEDIUM
+            return "\n".join(lines) if len(lines) > 1 else "No limit ranges found in namespace.", False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_configmap_metadata":
             cm_name = args.get("configmap_name", "")
@@ -1051,15 +968,12 @@ payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m"
                         break
             if not cm:
                 return f"Error from server (NotFound): configmaps '{cm_name}' not found", False, risk, InformationGain.LOW
-            output = (
-                f"Name:         {cm.name}
-"
-                f"Namespace:    {cm.namespace}
-"
-                f"Data Keys:
-  - " + "
-  - ".join(cm.data_keys)
-            )
+            output = "\n".join([
+                f"Name:         {cm.name}",
+                f"Namespace:    {cm.namespace}",
+                "Data Keys:",
+                *[f"  - {k}" for k in cm.data_keys],
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_secret_metadata":
@@ -1067,45 +981,27 @@ payments-api-slice-9f12    IPv4          8080    10.244.1.15,10.244.2.19    12m"
             sec = state.secrets.get(sec_name)
             if not sec:
                 return f"Error from server (NotFound): secrets '{sec_name}' not found", False, risk, InformationGain.LOW
-            output = (
-                f"Name:         {sec.name}
-"
-                f"Namespace:    {sec.namespace}
-"
-                f"Type:         {sec.type_name}
-"
-                f"Data Keys (values redacted): {', '.join(sec.data_keys)}"
-            )
+            output = "\n".join([
+                f"Name:         {sec.name}",
+                f"Namespace:    {sec.namespace}",
+                f"Type:         {sec.type_name}",
+                f"Data Keys (values redacted): {', '.join(sec.data_keys)}",
+            ])
             return output, False, risk, InformationGain.MEDIUM
 
         elif tool_name == "dns_lookup":
             domain = args.get("domain", "")
             if state.dns and not state.dns.coredns_healthy:
-                return f"Server: 10.96.0.10
-Address: 10.96.0.10#53
-** server can't find {domain}: SERVFAIL", False, risk, InformationGain.HIGH
+                return f"Server: 10.96.0.10\nAddress: 10.96.0.10#53\n** server can't find {domain}: SERVFAIL", False, risk, InformationGain.HIGH
             if state.dns and domain in state.dns.failing_domains:
-                return f"Server: 10.96.0.10
-Address: 10.96.0.10#53
-** server can't find {domain}: NXDOMAIN", False, risk, InformationGain.HIGH
-            return f"Server: 10.96.0.10
-Address: 10.96.0.10#53
-Name: {domain}
-Address: 10.96.44.18", False, risk, InformationGain.HIGH
+                return f"Server: 10.96.0.10\nAddress: 10.96.0.10#53\n** server can't find {domain}: NXDOMAIN", False, risk, InformationGain.HIGH
+            return f"Server: 10.96.0.10\nAddress: 10.96.0.10#53\nName: {domain}\nAddress: 10.96.44.18", False, risk, InformationGain.HIGH
 
         elif tool_name == "http_probe":
             url = args.get("url", "")
             if "fail" in url or "unhealthy" in url or any(p.status_summary != "Running" for p in state.pods.values()):
-                return "HTTP/1.1 503 Service Unavailable
-Content-Type: text/plain
-Connection: close
-
-upstream connect error or disconnect/reset before headers", False, risk, InformationGain.HIGH
-            return "HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 28
-
-{"status":"ok","uptime":18420}", False, risk, InformationGain.MEDIUM
+                return "HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\nConnection: close\n\nupstream connect error or disconnect/reset before headers", False, risk, InformationGain.HIGH
+            return "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 28\n\n{\"status\":\"ok\",\"uptime\":18420}", False, risk, InformationGain.MEDIUM
 
         elif tool_name == "tcp_probe":
             host = args.get("host", "")
@@ -1118,28 +1014,19 @@ Content-Length: 28
             node_name = args.get("node_name", "node-1")
             node = state.nodes.get(node_name)
             status = node.kubelet_status if node else "Active (running)"
-            return f"● kubelet.service - kubelet: The Kubernetes Node Agent
-   Loaded: loaded (/lib/systemd/system/kubelet.service)
-   Active: {status}
-   Main PID: 1204 (kubelet)", False, risk, InformationGain.MEDIUM
+            return f"● kubelet.service - kubelet: The Kubernetes Node Agent\n   Loaded: loaded (/lib/systemd/system/kubelet.service)\n   Active: {status}\n   Main PID: 1204 (kubelet)", False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_application_metrics":
             svc = args.get("service", "payments-api")
-            output = (
-                f"Target Service: {svc}
-"
-                f"Request Rate: 428 req/sec
-"
-                f"Error Rate (5xx): 8.4%
-"
-                f"Latency P50: 24ms
-"
-                f"Latency P95: 1840ms
-"
-                f"Latency P99: 4120ms
-"
-                f"Downstream Dependency Wait: 88% of request duration spent waiting for backend socket"
-            )
+            output = "\n".join([
+                f"Target Service: {svc}",
+                "Request Rate: 428 req/sec",
+                "Error Rate (5xx): 8.4%",
+                "Latency P50: 24ms",
+                "Latency P95: 1840ms",
+                "Latency P99: 4120ms",
+                "Downstream Dependency Wait: 88% of request duration spent waiting for backend socket",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_kafka_consumer_group":
@@ -1147,19 +1034,14 @@ Content-Length: 28
                 return "Kafka cluster not active in this cluster.", False, risk, InformationGain.LOW
             k = state.kafka
             throttled_msg = " [WARNING: CPU Throttling detected on consumer container]" if k.cpu_throttled else ""
-            output = (
-                f"GROUP:            {k.consumer_group}
-"
-                f"TOPIC:            {k.topic}
-"
-                f"PARTITIONS:       {k.partition_count}
-"
-                f"TOTAL-LAG:        {k.total_lag}
-"
-                f"ACTIVE-CONSUMERS: {k.consumer_count}
-"
-                f"STATUS:           Stable{throttled_msg}"
-            )
+            output = "\n".join([
+                f"GROUP:            {k.consumer_group}",
+                f"TOPIC:            {k.topic}",
+                f"PARTITIONS:       {k.partition_count}",
+                f"TOTAL-LAG:        {k.total_lag}",
+                f"ACTIVE-CONSUMERS: {k.consumer_count}",
+                f"STATUS:           Stable{throttled_msg}",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_kafka_partition_lag":
@@ -1169,64 +1051,48 @@ Content-Length: 28
             for i in range(state.kafka.partition_count):
                 lag = state.kafka.total_lag // state.kafka.partition_count
                 lines.append(f"{i:<10} {10000+i*500:<15} {10000+i*500+lag:<15} {lag:<5} consumer-instance-{i%2}")
-            return "
-".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join(lines), False, risk, InformationGain.HIGH
 
         elif tool_name == "get_redis_status":
             if not state.redis:
                 return "No Redis service configured in namespace.", False, risk, InformationGain.LOW
             r = state.redis
-            output = (
-                f"# Server
-redis_version: 7.2.4
-redis_mode: standalone
-"
-                f"role: master
-connected_clients: {r.connected_clients}
-"
-                f"used_memory_human: {r.used_memory_human}
-"
-                f"maxmemory_human: {r.max_memory_human}
-"
-                f"ping_status: {r.status}
-"
-            )
+            output = "\n".join([
+                "# Server",
+                "redis_version: 7.2.4",
+                "redis_mode: standalone",
+                "role: master",
+                f"connected_clients: {r.connected_clients}",
+                f"used_memory_human: {r.used_memory_human}",
+                f"maxmemory_human: {r.max_memory_human}",
+                f"ping_status: {r.status}",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_redis_metrics":
             if not state.redis:
                 return "No Redis metrics available.", False, risk, InformationGain.LOW
             r = state.redis
-            output = (
-                f"instantaneous_ops_per_sec: 1420
-"
-                f"hit_rate: 94.2%
-"
-                f"connected_clients: {r.connected_clients}
-"
-                f"blocked_clients: 0
-"
-                f"used_memory_rss_human: {r.used_memory_human}
-"
-            )
+            output = "\n".join([
+                "instantaneous_ops_per_sec: 1420",
+                "hit_rate: 94.2%",
+                f"connected_clients: {r.connected_clients}",
+                "blocked_clients: 0",
+                f"used_memory_rss_human: {r.used_memory_human}",
+            ])
             return output, False, risk, InformationGain.MEDIUM
 
         elif tool_name == "get_database_health":
             if not state.postgres:
                 return "No Postgres database configured.", False, risk, InformationGain.LOW
             p = state.postgres
-            output = (
-                f"Database Server: {p.service_name}
-"
-                f"Status: {p.status}
-"
-                f"Active Connections: {p.active_connections} / {p.max_connections}
-"
-                f"P95 Query Execution Time: {p.p95_query_time_ms}ms
-"
-                f"Lock Wait Count: {p.lock_wait_count}
-"
-            )
+            output = "\n".join([
+                f"Database Server: {p.service_name}",
+                f"Status: {p.status}",
+                f"Active Connections: {p.active_connections} / {p.max_connections}",
+                f"P95 Query Execution Time: {p.p95_query_time_ms}ms",
+                f"Lock Wait Count: {p.lock_wait_count}",
+            ])
             return output, False, risk, InformationGain.HIGH
 
         elif tool_name == "get_recent_changes":
@@ -1234,17 +1100,11 @@ connected_clients: {r.connected_clients}
                 lines = ["TIMESTAMP               USER               ACTION                         RESOURCE"]
                 for chg in state.recent_changes:
                     lines.append(f"{chg}")
-                return "
-".join(lines), False, risk, InformationGain.HIGH
-            return (
-                "TIMESTAMP               USER               ACTION                         RESOURCE
-"
-                "15m ago                 cicd-runner        Deployment rollout update      deployment/payments-api
-"
+                return "\n".join(lines), False, risk, InformationGain.HIGH
+            return "\n".join([
+                "TIMESTAMP               USER               ACTION                         RESOURCE",
+                "15m ago                 cicd-runner        Deployment rollout update      deployment/payments-api",
                 "45m ago                 platform-admin     ConfigMap sync                 configmap/payment-config",
-                False,
-                risk,
-                InformationGain.HIGH,
-            )
+            ]), False, risk, InformationGain.HIGH
 
         return f"Tool {tool_name} not implemented.", False, risk, InformationGain.LOW
