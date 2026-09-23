@@ -191,22 +191,17 @@ The evaluator uses strictly deterministic rules against hidden ground-truth deci
         # Append hypothesis results
         for t in hypothesis.tests:
             status_str = "SUPPORTED" if t.supported else "NOT SUPPORTED"
-            content += f"### Hypothesis {t.hypothesis_id}: {t.title}
-"
-            content += f"- **Outcome**: {status_str}
-"
-            content += f"- **Empirical Observation**: {t.description}
+            content += f"### Hypothesis {t.hypothesis_id}: {t.title}\n"
+            content += f"- **Outcome**: {status_str}\n"
+            content += f"- **Empirical Observation**: {t.description}\n\n"
 
-"
-
-        content += f"""## Confidence Threshold Analysis
+        content += """## Confidence Threshold Analysis
 
 | Threshold | Coverage | Safe Res Rate | Unsafe Rate | Fallback Rate | Median Latency (ms) | Mean Cost ($) |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 """
         for pt in hypothesis.threshold_sweeps:
-            content += f"| {pt.threshold:.2f} | {pt.automation_coverage:.1%} | {pt.safe_resolution_rate:.1%} | {pt.unsafe_action_rate:.1%} | {pt.frontier_fallback_rate:.1%} | {pt.median_latency_ms:.1f} | ${pt.mean_cost_usd:.4f} |
-"
+            content += f"| {pt.threshold:.2f} | {pt.automation_coverage:.1%} | {pt.safe_resolution_rate:.1%} | {pt.unsafe_action_rate:.1%} | {pt.frontier_fallback_rate:.1%} | {pt.median_latency_ms:.1f} | ${pt.mean_cost_usd:.4f} |\n"
 
         content += f"""
 ## Enterprise Scale Cost Projections
@@ -215,8 +210,7 @@ The evaluator uses strictly deterministic rules against hidden ground-truth deci
 | ---: | ---: | ---: | ---: | ---: |
 """
         for cp in hypothesis.cost_projections:
-            content += f"| {cp.daily_incidents:,} | ${cp.baseline_monthly_cost_usd:,.2f} | ${cp.hybrid_monthly_cost_usd:,.2f} | ${cp.monthly_savings_usd:,.2f} | {cp.percentage_savings:.1f}% |
-"
+            content += f"| {cp.daily_incidents:,} | ${cp.baseline_monthly_cost_usd:,.2f} | ${cp.hybrid_monthly_cost_usd:,.2f} | ${cp.monthly_savings_usd:,.2f} | {cp.percentage_savings:.1f}% |\n"
 
         content += """
 ## High-Confidence Failures
@@ -243,7 +237,6 @@ python -m backend.benchmark --mode full --seed 42
 """
 
         with open(md_path, "w", encoding="utf-8") as f:
-            f.write(content.strip() + "
-")
+            f.write(content.strip() + "\n")
 
         return md_path
