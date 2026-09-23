@@ -22,7 +22,6 @@ from backend.config import (
     BENCHMARK_VERSION,
     BenchmarkMode,
     BenchmarkSettings,
-    PrimaryArm,
     ReasoningEffort,
 )
 from backend.evaluation import (
@@ -31,7 +30,7 @@ from backend.evaluation import (
     TrajectoryEvaluator,
     aggregate_benchmark_results,
 )
-from backend.models.schema import EvaluationResult, ScenarioMetadata, Trajectory
+from backend.models.schema import EvaluationResult, PrimaryArm, ScenarioMetadata, Trajectory
 from backend.scenarios.registry import GLOBAL_SCENARIO_REGISTRY
 from backend.storage import (
     BenchmarkRun,
