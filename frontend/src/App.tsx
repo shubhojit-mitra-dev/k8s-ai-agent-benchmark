@@ -7,11 +7,12 @@ import { IncidentsView } from "./views/IncidentsView";
 import { ArchitectureView } from "./views/ArchitectureView";
 import { ScientificReportView } from "./views/ScientificReportView";
 import { GenericMetricView } from "./views/GenericMetricView";
-import { BenchmarkReport, ScenarioMetadata, Trajectory } from "./types";
+import { BenchmarkReport, ScenarioMetadata, Trajectory, RunInfo } from "./types";
 import { 
   fetchHealth, 
   fetchScenarios, 
   fetchRuns, 
+  fetchRunInfos,
   fetchRunReport, 
   fetchRunTrajectories, 
   subscribeToLiveEvents 
@@ -24,6 +25,8 @@ export const App: React.FC = () => {
   const [report, setReport] = useState<BenchmarkReport | null>(null);
   const [trajectories, setTrajectories] = useState<Trajectory[]>([]);
   const [liveEvents, setLiveEvents] = useState<any[]>([]);
+  const [runInfos, setRunInfos] = useState<RunInfo[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string>("");
 
   // Initial data loading
   useEffect(() => {
@@ -33,7 +36,7 @@ export const App: React.FC = () => {
 
     fetchScenarios().then(setScenarios).catch(console.error);
 
-    loadLatestRun();
+    loadRunCatalog();
 
     // Subscribe to SSE live stream
     const unsubscribe = subscribeToLiveEvents(
@@ -42,7 +45,7 @@ export const App: React.FC = () => {
         if (event.event === "run_started") setStatus("running");
         if (event.event === "run_completed") {
           setStatus("connected");
-          loadLatestRun();
+          loadRunCatalog();
         }
       },
       () => setStatus("idle")
@@ -51,26 +54,54 @@ export const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const loadLatestRun = async () => {
+  const loadRunCatalog = async () => {
     try {
-      const runs = await fetchRuns();
+      const runs = await fetchRunInfos();
+      setRunInfos(runs);
       if (runs.length > 0) {
-        const latestRunId = runs[0];
-        const [rep, traj] = await Promise.all([
-          fetchRunReport(latestRunId),
-          fetchRunTrajectories(latestRunId),
-        ]);
-        setReport(rep);
-        setTrajectories(traj);
+        const initialRun = runs[0].run_id;
+        setSelectedRunId(initialRun);
+        loadRunData(initialRun);
       }
     } catch (err) {
-      console.error("Could not load latest run data", err);
+      console.error("Could not load run catalog", err);
+      // Fallback
+      const runIds = await fetchRuns();
+      if (runIds.length > 0) {
+        setSelectedRunId(runIds[0]);
+        loadRunData(runIds[0]);
+      }
     }
   };
 
+  const loadRunData = async (runId: string) => {
+    try {
+      const [rep, traj] = await Promise.all([
+        fetchRunReport(runId),
+        fetchRunTrajectories(runId),
+      ]);
+      setReport(rep);
+      setTrajectories(traj);
+    } catch (err) {
+      console.error(`Could not load run data for ${runId}`, err);
+    }
+  };
+
+  const handleSelectRun = (runId: string) => {
+    setSelectedRunId(runId);
+    loadRunData(runId);
+  };
+
   return (
-    <div className="min-h-screen bg-background text-slate-100 flex flex-col font-sans">
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} status={status} />
+    <div className="min-h-screen bg-canvas text-ink flex flex-col font-sans selection:bg-primary-soft selection:text-ink">
+      <Navbar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        status={status}
+        runInfos={runInfos}
+        selectedRunId={selectedRunId}
+        onSelectRun={handleSelectRun}
+      />
 
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
         {activeTab === "overview" && (
