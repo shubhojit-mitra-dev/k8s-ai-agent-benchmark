@@ -6,6 +6,7 @@ Exposes scenarios, run triggering, live SSE streams, and report downloads.
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -144,17 +145,106 @@ async def get_run_trajectories(run_id: str) -> List[Dict[str, Any]]:
     run = GLOBAL_STORAGE_REPOSITORY.load_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    return [r.model_dump() for r in run.results]
+    
+    frontend_trajectories = []
+    for r in run.results:
+        t = r.trajectory
+        # Transform events into tool_events and decisions
+        tool_events = []
+        decisions = []
+        step_idx = 1
+        for ev in t.events:
+            actor = getattr(ev, "actor", "")
+            if actor == "tool":
+                tool_events.append({
+                    "step_index": step_idx,
+                    "tool_name": getattr(ev, "tool", ""),
+                    "arguments": getattr(ev, "tool_args", {}),
+                    "risk_level": getattr(ev, "risk_level", "READ_ONLY"),
+                    "output": getattr(ev, "tool_output", ""),
+                    "duration_ms": getattr(ev, "latency_ms", 0.0),
+                    "timestamp": getattr(ev, "monotonic_ms", 0.0),
+                })
+            else:
+                decisions.append({
+                    "step_index": step_idx,
+                    "engine": "JEV" if actor == "jev" else "SONNET",
+                    "choice": getattr(ev, "decision", ""),
+                    "noul": "",
+                    "score": getattr(ev, "confidence", 0.0) or 0.0,
+                    "raw_reasoning": json.dumps(getattr(ev, "payload", {})),
+                    "timestamp": getattr(ev, "monotonic_ms", 0.0),
+                })
+            step_idx += 1
+
+        frontend_trajectories.append({
+            "run_id": t.run_id,
+            "scenario_id": t.incident_id,
+            "arm": t.arm,
+            "start_time": 0,
+            "end_time": 0,
+            "duration_ms": t.latency.total_latency_ms,
+            "tool_events": tool_events,
+            "decisions": decisions,
+            "resolved": r.resolved,
+            "total_tokens": t.tokens_input + t.tokens_output,
+            "prompt_tokens": t.tokens_input,
+            "completion_tokens": t.tokens_output,
+            "total_cost_usd": t.cost.total_cost_usd,
+            "total_provider_latency_ms": t.latency.model_latency_ms,
+            "error_message": None,
+        })
+    return frontend_trajectories
 
 
 @router.get("/runs/{run_id}/report")
-async def get_run_report(run_id: str) -> PlainTextResponse:
+async def get_run_report(run_id: str) -> Dict[str, Any]:
+    run = GLOBAL_STORAGE_REPOSITORY.load_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
     run_dir = GLOBAL_STORAGE_REPOSITORY.get_run_dir(run_id)
     report_file = run_dir / "report.md"
-    if not report_file.exists():
-        raise HTTPException(status_code=404, detail="Report artifact not found")
-    with open(report_file, "r", encoding="utf-8") as f:
-        return PlainTextResponse(f.read())
+    neutral_summary = ""
+    if report_file.exists():
+        with open(report_file, "r", encoding="utf-8") as f:
+            neutral_summary = f.read()
+
+    agg = aggregate_benchmark_results(run.results)
+    
+    # Format arm metrics for dashboard
+    arms_data = {}
+    for arm_name, m in agg.arm_metrics.items():
+        arms_data[arm_name] = {
+            "arm": arm_name,
+            "sample_size": len(run.results),
+            "resolution_rate": m.safe_resolution_rate,
+            "safe_correct_rate": m.safe_resolution_rate,
+            "mean_duration_ms": m.latency_total_ms.mean,
+            "p50_duration_ms": m.latency_total_ms.p50,
+            "p90_duration_ms": m.latency_total_ms.p90,
+            "p95_duration_ms": m.latency_total_ms.p95,
+            "p99_duration_ms": m.latency_total_ms.p99,
+            "mean_tokens": m.total_tokens.mean,
+            "mean_cost_usd": m.cost_usd.mean,
+            "mean_wrong_turns": 0.0,
+            "mean_safety_score": 1.0 - m.unsafe_action_rate,
+            "prohibited_action_rate": m.unsafe_action_rate,
+            "total_cost_usd": sum(r.trajectory.cost.total_cost_usd for r in run.results if r.arm == arm_name),
+        }
+
+    return {
+        "timestamp": 0,
+        "run_id": run_id,
+        "mode": run.metadata.mode,
+        "metrics": {
+            "total_runs": len(run.results),
+            "arms": arms_data,
+            "difficulty_breakdown": {},
+        },
+        "hypothesis_results": {},
+        "neutral_summary": neutral_summary,
+    }
 
 
 @router.get("/runs/{run_id}/export/{export_format}")
