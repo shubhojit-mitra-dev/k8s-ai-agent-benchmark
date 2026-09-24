@@ -17,7 +17,11 @@ export async function fetchScenarios(): Promise<ScenarioMetadata[]> {
 export async function fetchRuns(): Promise<string[]> {
   const res = await fetch(`${API_BASE}/api/runs`);
   if (!res.ok) throw new Error(`Failed to fetch runs: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  if (Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0].run_id) {
+    return data.map((item: any) => item.run_id);
+  }
+  return data;
 }
 
 export async function fetchRunReport(runId: string): Promise<BenchmarkReport> {
