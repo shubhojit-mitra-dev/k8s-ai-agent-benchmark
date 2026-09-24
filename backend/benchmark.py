@@ -172,6 +172,20 @@ class BenchmarkEngine:
 
                     results.append(blind_eval)
 
+                    # Emit individual step events for live terminal streaming
+                    for ev in blind_eval.trajectory.events:
+                        action_desc = ev.decision or ev.tool or "action"
+                        self._emit_event("decision" if ev.actor in {"jev", "sonnet"} else "tool_call", {
+                            "run_id": run_id,
+                            "incident_id": scenario.id,
+                            "arm": arm,
+                            "step": ev.step,
+                            "actor": ev.actor,
+                            "action": action_desc,
+                            "latency_ms": round(ev.latency_ms, 1),
+                            "summary": f"[{arm}] Step {ev.step} | {ev.actor.upper()} -> {action_desc} ({round(ev.latency_ms, 1)}ms)",
+                        })
+
                     self._emit_event("incident_resolved" if blind_eval.safe_correct_resolution else "incident_failed", {
                         "run_id": run_id,
                         "incident_id": scenario.id,
@@ -180,6 +194,7 @@ class BenchmarkEngine:
                         "latency_ms": blind_eval.trajectory.latency.total_latency_ms,
                         "cost_usd": blind_eval.trajectory.cost.total_cost_usd,
                         "steps": blind_eval.trajectory.total_steps,
+                        "summary": f"[{arm}] {scenario.id} {'RESOLVED (SAFE)' if blind_eval.safe_correct_resolution else 'COMPLETED'} in {round(blind_eval.trajectory.latency.total_latency_ms / 1000, 2)}s (${round(blind_eval.trajectory.cost.total_cost_usd, 4)})",
                     })
 
         duration = time.monotonic() - start_wall
