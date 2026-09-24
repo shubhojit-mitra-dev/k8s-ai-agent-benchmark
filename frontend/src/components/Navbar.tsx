@@ -37,11 +37,14 @@ export type TabId =
   | "history"
   | "reports";
 
+import { RunInfo } from "../types";
+
 interface NavbarProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   status: "idle" | "running" | "connected";
   runIds?: string[];
+  runInfos?: RunInfo[];
   selectedRunId?: string;
   onSelectRun?: (runId: string) => void;
 }
@@ -71,9 +74,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   status,
   runIds = [],
+  runInfos = [],
   selectedRunId = "",
   onSelectRun,
 }) => {
+  const displayRuns = runInfos.length > 0 
+    ? runInfos.map(r => ({ id: r.run_id, label: `Run ${r.run_id} (${r.mode || "live"}, ${r.total_scenarios || 2} scenarios)` }))
+    : runIds.map(id => ({ 
+        id, 
+        label: id.includes("1790253930")
+          ? `Run ${id} (Live OpenRouter Sonnet 5 + Jev)`
+          : id.includes("1790199162")
+          ? `Run ${id} (4-Arm Cloudflare + OpenRouter)`
+          : `Run ${id}` 
+      }));
+
   return (
     <header className="sticky top-0 z-50 border-b border-hairline bg-canvas/95 backdrop-blur-md">
       {/* Top Brand & Run Selector Bar */}
@@ -102,7 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right side: Run Selector & System Status */}
         <div className="flex items-center space-x-4">
-          {runIds.length > 0 && (
+          {displayRuns.length > 0 && (
             <div className="flex items-center space-x-2 text-xs">
               <label htmlFor="run-select" className="text-muted font-medium">
                 Active Run:
@@ -113,13 +128,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onChange={(e) => onSelectRun && onSelectRun(e.target.value)}
                 className="rounded-md border border-hairline bg-surface-card px-3 py-1.5 font-mono text-xs text-ink focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
-                {runIds.map((id) => (
-                  <option key={id} value={id}>
-                    {id.includes("1790253930")
-                      ? `Run ${id} (Live OpenRouter Sonnet 5 + Jev)`
-                      : id.includes("1790199162")
-                      ? `Run ${id} (4-Arm Cloudflare + OpenRouter)`
-                      : `Run ${id}`}
+                {displayRuns.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
                   </option>
                 ))}
               </select>
