@@ -22,7 +22,7 @@ export const TrajectoriesView: React.FC<TrajectoriesViewProps> = ({ trajectories
     selectedScenario === "all" ? true : t.scenario_id === selectedScenario
   );
 
-  const getTrajectory = (arm: PrimaryArm, scenario: string) => {
+  const getTrajectory = (arm: string, scenario: string) => {
     return trajectories.find((t) => t.arm === arm && t.scenario_id === scenario);
   };
 
