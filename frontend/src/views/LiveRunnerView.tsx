@@ -16,7 +16,8 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
   status,
 }) => {
   const [mode, setMode] = useState<string>("smoke");
-  const [forceMock, setForceMock] = useState<boolean>(true);
+  const [armSelection, setArmSelection] = useState<string>("or-pair");
+  const [forceMock, setForceMock] = useState<boolean>(false);
   const [parallel, setParallel] = useState<boolean>(false);
   const [localRunning, setLocalRunning] = useState<boolean>(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -33,7 +34,14 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
     try {
       setLocalRunning(true);
       onClearEvents();
-      const res = await startBenchmarkRun({ mode, forceMock, parallel });
+      const selectedArms = 
+        armSelection === "or-pair" 
+          ? ["OR-SONNET", "OR-JEV-SONNET"] 
+          : armSelection === "cf-pair"
+          ? ["CF-SONNET", "CF-JEV-SONNET"]
+          : undefined;
+
+      const res = await startBenchmarkRun({ mode, forceMock, parallel, arms: selectedArms });
       setCurrentRunId(res.run_id);
     } catch (err: any) {
       alert(`Error starting benchmark: ${err.message}`);
@@ -51,11 +59,25 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
           </div>
           <h2 className="mt-1 text-2xl font-serif font-bold text-ink">Live Benchmark Execution Stream</h2>
           <p className="mt-1 text-xs text-body">
-            Execute real-time autonomous incident response evaluation across all comparative arms.
+            Execute real-time autonomous incident response evaluation across comparative arms.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center space-x-2">
+            <label className="text-xs font-mono font-medium text-body">Arms:</label>
+            <select
+              value={armSelection}
+              onChange={(e) => setArmSelection(e.target.value)}
+              disabled={isRunning}
+              className="rounded-lg border border-hairline bg-canvas px-3 py-1.5 text-xs font-mono text-ink focus:border-primary focus:outline-none"
+            >
+              <option value="or-pair">Live OpenRouter (OR-SONNET + OR-JEV)</option>
+              <option value="all-4">All 4 Arms (CF + OpenRouter)</option>
+              <option value="cf-pair">Cloudflare (CF-SONNET + CF-JEV)</option>
+            </select>
+          </div>
+
           <div className="flex items-center space-x-2">
             <label className="text-xs font-mono font-medium text-body">Mode:</label>
             <select
@@ -64,8 +86,8 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
               disabled={isRunning}
               className="rounded-lg border border-hairline bg-canvas px-3 py-1.5 text-xs font-mono text-ink focus:border-primary focus:outline-none"
             >
-              <option value="smoke">Smoke (2 incidents)</option>
-              <option value="quick">Quick (5 incidents)</option>
+              <option value="smoke">Smoke (1 incident)</option>
+              <option value="quick">Quick (4 incidents)</option>
               <option value="ladder">Ladder (10 incidents)</option>
               <option value="full">Full (20 incidents)</option>
             </select>
@@ -79,7 +101,7 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
               disabled={isRunning}
               className="rounded border-hairline text-primary focus:ring-0"
             />
-            <span>Deterministic Sandbox</span>
+            <span>Mock Sandbox</span>
           </label>
 
           <label className="flex items-center space-x-2 text-xs font-mono text-body cursor-pointer select-none">
@@ -145,13 +167,16 @@ export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                   ev.event === "decision" ? "bg-amber-500/20 text-amber-300 border border-amber-500/40" :
                   ev.event === "tool_call" ? "bg-primary-soft text-primary border border-primary/40" :
-                  ev.event === "scenario_completed" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" :
+                  ev.event === "incident_resolved" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" :
+                  ev.event === "incident_failed" ? "bg-rose-500/20 text-rose-300 border border-rose-500/40" :
+                  ev.event === "run_started" ? "bg-blue-500/20 text-blue-300 border border-blue-500/40" :
+                  ev.event === "run_completed" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" :
                   "bg-slate-800 text-slate-300 border border-slate-700"
                 }`}>
                   {ev.event}
                 </span>
                 <span className="break-all font-mono text-[11px] leading-relaxed">
-                  {typeof ev.data === "string" ? ev.data : JSON.stringify(ev.data)}
+                  {ev.data?.summary || (typeof ev.data === "string" ? ev.data : JSON.stringify(ev.data))}
                 </span>
               </div>
             ))

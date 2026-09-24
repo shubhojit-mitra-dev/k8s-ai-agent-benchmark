@@ -42,6 +42,9 @@ export const GenericMetricView: React.FC<GenericMetricViewProps> = ({
       durationP50: Number((data.p50_duration_ms / 1000).toFixed(2)),
       durationP90: Number((data.p90_duration_ms / 1000).toFixed(2)),
       durationP95: Number((data.p95_duration_ms / 1000).toFixed(2)),
+      rawP50Ms: data.p50_duration_ms,
+      rawP90Ms: data.p90_duration_ms,
+      rawP95Ms: data.p95_duration_ms,
       tokens: data.mean_tokens,
       cost: Number(data.total_cost_usd.toFixed(4)),
       safety: Number((data.mean_safety_score * 100).toFixed(1)),
@@ -656,8 +659,12 @@ export const GenericMetricView: React.FC<GenericMetricViewProps> = ({
                 <tr key={d.arm} className="hover:bg-surface-soft/50 transition-colors">
                   <td className="py-2.5 font-bold text-primary">{d.arm}</td>
                   <td className="py-2.5">{d.resolutionRate}%</td>
-                  <td className="py-2.5">{d.durationP50}s</td>
-                  <td className="py-2.5">{d.durationP95}s</td>
+                  <td className="py-2.5">
+                    {d.durationP50 >= 0.01 ? `${d.durationP50}s` : (d.rawP50Ms > 0 ? `${d.rawP50Ms.toFixed(0)}ms` : "0s")}
+                  </td>
+                  <td className="py-2.5">
+                    {d.durationP95 >= 0.01 ? `${d.durationP95}s` : (d.rawP95Ms > 0 ? `${d.rawP95Ms.toFixed(0)}ms` : "0s")}
+                  </td>
                   <td className="py-2.5">{d.tokens.toLocaleString()}</td>
                   <td className="py-2.5">${d.cost}</td>
                   <td className="py-2.5 text-success font-bold">{d.safety}%</td>

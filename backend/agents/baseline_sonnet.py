@@ -127,6 +127,7 @@ class BaselineSonnetAgent(BaseAgent):
                 self.trajectory.termination_reason = TerminationReason.RESOLVED
 
         total_elapsed_ms = (time.monotonic() - self.start_mono_time) * 1000.0
-        self.trajectory.latency.total_latency_ms = total_elapsed_ms
+        simulated_total_ms = self.trajectory.latency.ai_latency_ms + self.trajectory.latency.tool_latency_ms
+        self.trajectory.latency.total_latency_ms = max(total_elapsed_ms, simulated_total_ms)
         self.trajectory.latency.model_latency_ms = self.trajectory.latency.ai_latency_ms
         return self.trajectory
