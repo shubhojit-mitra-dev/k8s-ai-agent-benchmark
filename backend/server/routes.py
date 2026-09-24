@@ -93,9 +93,8 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks) -> Dict
     diff_range = (req.difficulty_range[0], req.difficulty_range[1]) if req.difficulty_range else None
     planned_run_id = f"{int(time.time())}_{req.mode}"
 
-    # Asynchronous runner hook broadcasting to SSE
-    def run_benchmark_task() -> None:
-        async def _run() -> None:
+    async def _run() -> None:
+        try:
             engine = BenchmarkEngine(
                 settings=settings,
                 mode=BenchmarkMode(req.mode),
@@ -111,10 +110,14 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks) -> Dict
                 event_callback=lambda ev: GLOBAL_EVENT_BROADCASTER.broadcast("active", ev),
             )
             await engine.execute()
+        except Exception as e:
+            GLOBAL_EVENT_BROADCASTER.broadcast("active", {
+                "event": "run_error",
+                "error": str(e),
+                "timestamp": time.time(),
+            })
 
-        asyncio.run(_run())
-
-    background_tasks.add_task(run_benchmark_task)
+    asyncio.create_task(_run())
 
     return {
         "status": "initiated",
