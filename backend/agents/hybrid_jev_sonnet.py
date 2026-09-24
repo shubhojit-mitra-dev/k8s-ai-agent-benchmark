@@ -101,15 +101,29 @@ class HybridJevSonnetAgent(BaseAgent):
             # 2. Translate routine Jev choice into tool execution
             target_tool = JEV_CHOICE_TO_TOOL.get(jev_dec.next_step, "get_cluster_state")
             tool_args: Dict[str, Any] = {}
+            target_ns = initial_alert.get("namespace", "")
+            target_dep = initial_alert.get("deployment", "")
+            target_svc = initial_alert.get("service", "")
+            target_pod = initial_alert.get("pod", "")
+
+            if not target_pod:
+                # Resolve candidate pod from simulator state matching namespace or deployment
+                for p in self.simulator.state.pods.values():
+                    if (target_ns and p.namespace == target_ns) or (target_dep and target_dep in p.name):
+                        target_pod = p.name
+                        break
+                if not target_pod and self.simulator.state.pods:
+                    target_pod = next(iter(self.simulator.state.pods.keys()))
+
             if target_tool in {"list_pods", "get_deployment", "get_service", "get_pod_logs"}:
-                target_tool_ns = initial_alert.get("namespace", "payments")
-                tool_args["namespace"] = target_tool_ns
-                if target_tool == "get_deployment":
-                    tool_args["deployment_name"] = initial_alert.get("deployment", "payments-api")
-                elif target_tool == "get_service":
-                    tool_args["service_name"] = initial_alert.get("service", "payments-api")
-                elif target_tool == "get_pod_logs":
-                    tool_args["pod_name"] = "payments-api-5ddc1"
+                if target_ns:
+                    tool_args["namespace"] = target_ns
+                if target_tool == "get_deployment" and target_dep:
+                    tool_args["deployment_name"] = target_dep
+                elif target_tool == "get_service" and (target_svc or target_dep):
+                    tool_args["service_name"] = target_svc or target_dep
+                elif target_tool == "get_pod_logs" and target_pod:
+                    tool_args["pod_name"] = target_pod
 
             # Execute tool in simulator
             output_text, tool_event = self.execute_tool_call(target_tool, tool_args)
@@ -153,10 +167,22 @@ class HybridJevSonnetAgent(BaseAgent):
             if sd.should_escalate:
                 self.trajectory.termination_reason = TerminationReason.ESCALATED
             elif sd.requires_action and sd.recommended_action:
+                rem_args: Dict[str, Any] = {}
+                target_name = initial_alert.get("deployment") or initial_alert.get("service") or initial_alert.get("pod") or ""
+                rem_args["target"] = target_name
+                rem_args["deployment_name"] = target_name
+                if sd.recommended_action == "adjust_resources":
+                    rem_args["memory_limit"] = "1024Mi"
+                    rem_args["cpu_limit"] = "1000m"
+                elif sd.recommended_action == "scale_deployment":
+                    rem_args["replicas"] = 3
+                elif sd.recommended_action == "restart_pod" and target_name:
+                    rem_args["pod_name"] = target_name
+
                 # Execute remediation in simulator
                 self.execute_tool_call(
                     sd.recommended_action,
-                    {"target": initial_alert.get("deployment", "payments-api"), "memory_limit": "1024Mi"},
+                    rem_args,
                 )
                 if self.simulator.evaluate_resolution_state():
                     self.trajectory.termination_reason = TerminationReason.RESOLVED
