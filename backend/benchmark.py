@@ -174,8 +174,11 @@ class BenchmarkEngine:
 
                     # Emit individual step events for live terminal streaming
                     for ev in blind_eval.trajectory.events:
-                        action_desc = ev.decision or ev.tool or "action"
-                        self._emit_event("decision" if ev.actor in {"jev", "sonnet"} else "tool_call", {
+                        dec = getattr(ev, "decision", None)
+                        tool_name = getattr(ev, "tool", None)
+                        action_desc = dec or tool_name or "action"
+                        is_decision = dec is not None
+                        self._emit_event("decision" if is_decision else "tool_call", {
                             "run_id": run_id,
                             "incident_id": scenario.id,
                             "arm": arm,
