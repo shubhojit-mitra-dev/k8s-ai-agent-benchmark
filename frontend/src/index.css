@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "StyreneB", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #faf9f5;
+  color: #141413;
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Cormorant Garamond", "Copernicus", "Tiempos Headline", Garamond, Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+code, pre, .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Custom scrollbar matching Claude warm palette */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #faf9f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e6dfd8;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4ccbf;
+}
+
+@media print {
+  header, nav, button, .no-print {
+    display: none !important;
+  }
+  body, main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+}
