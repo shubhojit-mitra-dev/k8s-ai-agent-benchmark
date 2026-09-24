@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { startBenchmarkRun } from "../api/client";
 import { Play, RefreshCw, Terminal, Activity, ShieldAlert, Cpu } from "lucide-react";
 
@@ -6,28 +6,38 @@ interface LiveRunnerViewProps {
   events: any[];
   onClearEvents: () => void;
   onRefreshRun: () => void;
+  status: "idle" | "running" | "connected";
 }
 
 export const LiveRunnerView: React.FC<LiveRunnerViewProps> = ({
   events,
   onClearEvents,
   onRefreshRun,
+  status,
 }) => {
   const [mode, setMode] = useState<string>("smoke");
   const [forceMock, setForceMock] = useState<boolean>(true);
   const [parallel, setParallel] = useState<boolean>(false);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [localRunning, setLocalRunning] = useState<boolean>(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+
+  const isRunning = localRunning || status === "running";
+
+  useEffect(() => {
+    if (status !== "running") {
+      setLocalRunning(false);
+    }
+  }, [status]);
 
   const handleStart = async () => {
     try {
-      setIsRunning(true);
+      setLocalRunning(true);
       onClearEvents();
       const res = await startBenchmarkRun({ mode, forceMock, parallel });
       setCurrentRunId(res.run_id);
     } catch (err: any) {
       alert(`Error starting benchmark: ${err.message}`);
-      setIsRunning(false);
+      setLocalRunning(false);
     }
   };
 
