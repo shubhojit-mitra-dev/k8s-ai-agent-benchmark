@@ -222,9 +222,11 @@ async def get_run_report(run_id: str) -> Dict[str, Any]:
     # Format arm metrics for dashboard
     arms_data = {}
     for arm_name, m in agg.arm_metrics.items():
+        arm_res = [r for r in run.results if r.arm == arm_name]
+        wrong_turns_mean = (sum(r.wrong_turn_count for r in arm_res) / len(arm_res)) if arm_res else 0.0
         arms_data[arm_name] = {
             "arm": arm_name,
-            "sample_size": len(run.results),
+            "sample_size": len(arm_res),
             "resolution_rate": m.safe_resolution_rate,
             "safe_correct_rate": m.safe_resolution_rate,
             "mean_duration_ms": m.latency_total_ms.mean,
@@ -234,10 +236,10 @@ async def get_run_report(run_id: str) -> Dict[str, Any]:
             "p99_duration_ms": m.latency_total_ms.p99,
             "mean_tokens": m.total_tokens.mean,
             "mean_cost_usd": m.cost_usd.mean,
-            "mean_wrong_turns": 0.0,
+            "mean_wrong_turns": round(wrong_turns_mean, 2),
             "mean_safety_score": 1.0 - m.unsafe_action_rate,
             "prohibited_action_rate": m.unsafe_action_rate,
-            "total_cost_usd": sum(r.trajectory.cost.total_cost_usd for r in run.results if r.arm == arm_name),
+            "total_cost_usd": sum(r.trajectory.cost.total_cost_usd for r in arm_res),
         }
 
     return {
