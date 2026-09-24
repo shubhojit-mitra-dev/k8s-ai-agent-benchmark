@@ -82,6 +82,7 @@ async def get_scenario(scenario_id: str) -> Dict[str, Any]:
 
 
 @router.post("/runs")
+@router.post("/runs/start")
 async def create_run(req: RunRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
     settings = BenchmarkSettings(
         reasoning_effort=ReasoningEffort(req.reasoning_effort),
@@ -89,6 +90,7 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks) -> Dict
     )
 
     diff_range = (req.difficulty_range[0], req.difficulty_range[1]) if req.difficulty_range else None
+    planned_run_id = f"{int(time.time())}_{req.mode}"
 
     # Asynchronous runner hook broadcasting to SSE
     def run_benchmark_task() -> None:
@@ -115,6 +117,7 @@ async def create_run(req: RunRequest, background_tasks: BackgroundTasks) -> Dict
 
     return {
         "status": "initiated",
+        "run_id": planned_run_id,
         "message": f"Benchmark run launched in mode '{req.mode}'",
         "stream_url": "/api/runs/active/events",
     }
@@ -276,7 +279,8 @@ async def compare_runs(run_a: str = Query(...), run_b: str = Query(...)) -> Dict
     return comp
 
 
+@router.get("/events")
 @router.get("/runs/{run_id}/events")
-async def stream_run_events(run_id: str) -> EventSourceResponse:
+async def stream_run_events(run_id: str = "active") -> EventSourceResponse:
     """Streams live execution events via Server-Sent Events (SSE)."""
     return EventSourceResponse(GLOBAL_EVENT_BROADCASTER.event_generator(run_id))
