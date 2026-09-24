@@ -3,13 +3,48 @@ export type PrimaryArm = "CF-SONNET" | "CF-JEV-SONNET" | "OR-SONNET" | "OR-JEV-S
 export type DifficultyBand = "EASY" | "MEDIUM" | "HARD" | "VERY_HARD" | "EXTREME";
 
 export interface ScenarioMetadata {
-  scenario_id: string;
-  name: string;
-  difficulty: DifficultyBand;
-  order: number;
-  description: string;
-  root_cause: string;
-  safe_resolution_description: string;
+  id: string;
+  title: string;
+  difficulty: number;
+  category: string;
+  initial_alert: {
+    alert?: string;
+    namespace?: string;
+    deployment?: string;
+    pod?: string;
+    message?: string;
+    availability?: string;
+    [key: string]: any;
+  };
+  hidden_root_cause: string;
+  hidden_secondary_effects: string[];
+  valid_investigation_paths: string[][];
+  unsafe_actions: string[];
+  correct_resolution_conditions: Record<string, any>;
+  ground_truth_rationale: string;
+  expected_tool_sequences: string[][];
+  allowed_alternative_paths: string[][];
+  initial_state_sha256?: string;
+
+  // Convenience aliases for backward compatibility
+  scenario_id?: string;
+  name?: string;
+  description?: string;
+  root_cause?: string;
+  safe_resolution_description?: string;
+}
+
+export interface RunInfo {
+  run_id: string;
+  timestamp: string;
+  benchmark_version: string;
+  mode: string;
+  arms: string[];
+  repetitions: number;
+  total_incidents: number;
+  reasoning_effort: string;
+  duration_seconds: number;
+  completed: boolean;
 }
 
 export interface DecisionEvent {
