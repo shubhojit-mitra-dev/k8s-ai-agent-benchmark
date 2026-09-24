@@ -79,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectRun,
 }) => {
   const displayRuns = runInfos.length > 0 
-    ? runInfos.map(r => ({ id: r.run_id, label: `Run ${r.run_id} (${r.mode || "live"}, ${r.total_scenarios || 2} scenarios)` }))
+    ? runInfos.map(r => ({ id: r.run_id, label: `Run ${r.run_id} (${r.mode || "live"}, ${r.total_incidents || 2} incidents)` }))
     : runIds.map(id => ({ 
         id, 
         label: id.includes("1790253930")
