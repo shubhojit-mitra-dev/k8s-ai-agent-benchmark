@@ -248,7 +248,15 @@ def main(
     )
 
     diff_range = (difficulty[0], difficulty[1]) if difficulty else None
-    arms_list = list(arms) if arms else None
+    arms_list = []
+    if arms:
+        for a in arms:
+            for item in a.split(','):
+                item = item.strip()
+                if item:
+                    arms_list.append(item)
+    if not arms_list:
+        arms_list = None
     incidents_list = list(incidents) if incidents else None
 
     engine = BenchmarkEngine(
