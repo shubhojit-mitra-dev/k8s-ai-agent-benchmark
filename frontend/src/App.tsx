@@ -111,7 +111,7 @@ export const App: React.FC = () => {
           <LiveRunnerView
             events={liveEvents}
             onClearEvents={() => setLiveEvents([])}
-            onRefreshRun={loadLatestRun}
+            onRefreshRun={loadRunCatalog}
           />
         )}
         {activeTab === "architecture" && <ArchitectureView />}
