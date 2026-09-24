@@ -1,4 +1,4 @@
-import { BenchmarkReport, ScenarioMetadata, Trajectory } from "../types";
+import { BenchmarkReport, ScenarioMetadata, Trajectory, RunInfo } from "../types";
 
 const API_BASE = "";
 
@@ -11,7 +11,15 @@ export async function fetchHealth(): Promise<{ status: string; timestamp: number
 export async function fetchScenarios(): Promise<ScenarioMetadata[]> {
   const res = await fetch(`${API_BASE}/api/scenarios`);
   if (!res.ok) throw new Error(`Failed to fetch scenarios: ${res.statusText}`);
-  return res.json();
+  const data: ScenarioMetadata[] = await res.json();
+  return data.map((sc) => ({
+    ...sc,
+    scenario_id: sc.scenario_id || sc.id,
+    name: sc.name || sc.title,
+    description: sc.description || (sc.initial_alert ? JSON.stringify(sc.initial_alert, null, 2) : ""),
+    root_cause: sc.root_cause || sc.hidden_root_cause,
+    safe_resolution_description: sc.safe_resolution_description || sc.ground_truth_rationale,
+  }));
 }
 
 export async function fetchRuns(): Promise<string[]> {
@@ -22,6 +30,16 @@ export async function fetchRuns(): Promise<string[]> {
     return data.map((item: any) => item.run_id);
   }
   return data;
+}
+
+export async function fetchRunInfos(): Promise<RunInfo[]> {
+  const res = await fetch(`${API_BASE}/api/runs`);
+  if (!res.ok) throw new Error(`Failed to fetch runs: ${res.statusText}`);
+  const data = await res.json();
+  if (Array.isArray(data)) {
+    return data;
+  }
+  return [];
 }
 
 export async function fetchRunReport(runId: string): Promise<BenchmarkReport> {
