@@ -50,7 +50,8 @@ class StorageRepository:
         self._runs_cache: Dict[str, BenchmarkRun] = {}
 
     def get_run_dir(self, run_id: str) -> Path:
-        run_dir = self.base_dir / f"run_{run_id}"
+        clean_id = run_id[4:] if run_id.startswith("run_") else run_id
+        run_dir = self.base_dir / f"run_{clean_id}"
         run_dir.mkdir(parents=True, exist_ok=True)
         return run_dir
 
@@ -78,10 +79,13 @@ class StorageRepository:
         return run_dir
 
     def load_run(self, run_id: str) -> Optional[BenchmarkRun]:
+        clean_id = run_id[4:] if run_id.startswith("run_") else run_id
+        if clean_id in self._runs_cache:
+            return self._runs_cache[clean_id]
         if run_id in self._runs_cache:
             return self._runs_cache[run_id]
 
-        run_dir = self.base_dir / f"run_{run_id}"
+        run_dir = self.get_run_dir(clean_id)
         meta_path = run_dir / "metadata.json"
         res_path = run_dir / "results.json"
 
