@@ -28,9 +28,15 @@ class EventBroadcaster:
                 del self._queues[run_id]
 
     def broadcast(self, run_id: str, event_data: Dict[str, Any]) -> None:
+        targets = set()
         if run_id in self._queues:
-            for q in self._queues[run_id]:
-                q.put_nowait(event_data)
+            targets.update(self._queues[run_id])
+        if "active" in self._queues:
+            targets.update(self._queues["active"])
+        if "global" in self._queues:
+            targets.update(self._queues["global"])
+        for q in targets:
+            q.put_nowait(event_data)
 
     async def event_generator(self, run_id: str) -> AsyncGenerator[Dict[str, str], None]:
         q = self.register(run_id)
