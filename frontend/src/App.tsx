@@ -112,6 +112,7 @@ export const App: React.FC = () => {
             events={liveEvents}
             onClearEvents={() => setLiveEvents([])}
             onRefreshRun={loadRunCatalog}
+            status={status}
           />
         )}
         {activeTab === "architecture" && <ArchitectureView />}
