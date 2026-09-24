@@ -16,31 +16,31 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   variant = "default",
 }) => {
   const borderClass = {
-    default: "border-surface-border",
-    primary: "border-primary/40 bg-primary/5",
-    accent: "border-accent/40 bg-accent/5",
-    danger: "border-danger/40 bg-danger/5",
-    warning: "border-warning/40 bg-warning/5",
+    default: "border-hairline bg-surface-card",
+    primary: "border-primary/40 bg-surface-cream-strong",
+    accent: "border-success/40 bg-surface-card",
+    danger: "border-error/40 bg-surface-card",
+    warning: "border-warning/40 bg-surface-card",
   }[variant];
 
   const valueClass = {
-    default: "text-slate-100",
+    default: "text-ink",
     primary: "text-primary",
-    accent: "text-accent",
-    danger: "text-danger",
+    accent: "text-success",
+    danger: "text-error",
     warning: "text-warning",
   }[variant];
 
   return (
-    <div className={`rounded-xl border bg-surface p-5 shadow-sm transition-all hover:border-slate-600 ${borderClass}`}>
+    <div className={`rounded-lg border p-5 shadow-sm transition-all hover:border-muted-soft ${borderClass}`}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{title}</span>
-        {trend && <span className="text-xs font-mono font-medium text-slate-300">{trend}</span>}
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted font-sans">{title}</span>
+        {trend && <span className="text-xs font-mono font-medium text-body-strong bg-surface-soft px-2 py-0.5 rounded border border-hairline">{trend}</span>}
       </div>
-      <div className={`mt-3 text-3xl font-bold font-mono tracking-tight ${valueClass}`}>
+      <div className={`mt-2.5 text-3xl font-medium font-serif tracking-tight ${valueClass}`}>
         {value}
       </div>
-      {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-xs text-body font-sans">{subtitle}</p>}
     </div>
   );
 };
