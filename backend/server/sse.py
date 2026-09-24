@@ -36,7 +36,14 @@ class EventBroadcaster:
         if "global" in self._queues:
             targets.update(self._queues["global"])
         for q in targets:
-            q.put_nowait(event_data)
+            try:
+                q.put_nowait(event_data)
+            except Exception:
+                try:
+                    loop = getattr(q, "_loop", None) or asyncio.get_event_loop()
+                    loop.call_soon_threadsafe(q.put_nowait, event_data)
+                except Exception:
+                    pass
 
     async def event_generator(self, run_id: str) -> AsyncGenerator[Dict[str, str], None]:
         q = self.register(run_id)
@@ -46,7 +53,7 @@ class EventBroadcaster:
                 try:
                     data = await asyncio.wait_for(q.get(), timeout=30.0)
                     yield {
-                        "event": data.get("event", "message"),
+                        "event": "message",
                         "data": json.dumps(data),
                     }
                     if data.get("event") == "run_completed":
