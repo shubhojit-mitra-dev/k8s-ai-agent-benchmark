@@ -58,6 +58,7 @@ export async function startBenchmarkRun(params: {
   mode: string;
   forceMock: boolean;
   parallel: boolean;
+  arms?: string[];
 }): Promise<{ status: string; run_id: string; message: string }> {
   const res = await fetch(`${API_BASE}/api/runs/start`, {
     method: "POST",
@@ -66,6 +67,7 @@ export async function startBenchmarkRun(params: {
       mode: params.mode,
       force_mock: params.forceMock,
       parallel: params.parallel,
+      arms: params.arms && params.arms.length > 0 ? params.arms : undefined,
     }),
   });
   if (!res.ok) throw new Error(`Failed to start benchmark: ${res.statusText}`);
