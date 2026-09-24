@@ -21,6 +21,17 @@ export const ScientificReportView: React.FC<ScientificReportViewProps> = ({ repo
   const { metrics, neutral_summary } = report;
   const arms = Object.entries(metrics.arms);
 
+  const armsMap = metrics.arms as Record<string, any>;
+  const baseline = armsMap["OR-SONNET"] || armsMap["CF-SONNET"] || armsMap["baseline_sonnet"];
+  const hybrid = armsMap["OR-JEV-SONNET"] || armsMap["CF-JEV-SONNET"] || armsMap["hybrid_jev_sonnet"];
+
+  const costDelta = baseline && hybrid && baseline.mean_cost_usd > 0
+    ? ((1 - hybrid.mean_cost_usd / baseline.mean_cost_usd) * 100).toFixed(1)
+    : null;
+  const latencyDelta = baseline && hybrid && baseline.p50_duration_ms > 0
+    ? ((1 - hybrid.p50_duration_ms / baseline.p50_duration_ms) * 100).toFixed(1)
+    : null;
+
   const downloadMarkdown = () => {
     const blob = new Blob([neutral_summary || JSON.stringify(report, null, 2)], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
@@ -166,10 +177,19 @@ export const ScientificReportView: React.FC<ScientificReportViewProps> = ({ repo
             <p className="text-xs md:text-sm text-body-strong leading-relaxed font-sans">
               This benchmark empirically evaluates whether delegating routine Kubernetes investigation and tool-selection decisions
               to a fast specialized decision model (<strong>Jev</strong>) while reserving <strong>Claude Sonnet 5</strong> for frontier
-              synthesis yields operational superiority over a monolithic Claude Sonnet 5 agent. Across evaluated trajectories, the
-              two-tier hybrid architecture demonstrated an <strong>87.5% reduction in total AI API expenditure</strong> and a{" "}
-              <strong>68.9% reduction in end-to-end incident turnaround latency</strong>, requiring only a single frontier reasoning
-              call per incident while preserving deterministic cluster safety invariants.
+              synthesis yields operational superiority over a monolithic Claude Sonnet 5 agent. Across evaluated trajectories,
+              {costDelta && latencyDelta ? (
+                <>
+                  {" "}the two-tier hybrid architecture demonstrated a <strong>{costDelta}% reduction in total AI API expenditure</strong> and a{" "}
+                  <strong>{latencyDelta}% reduction in median incident turnaround latency</strong>, requiring only a single frontier reasoning
+                  call per incident while preserving deterministic cluster safety invariants.
+                </>
+              ) : (
+                <>
+                  {" "}the comparative metrics evaluate cost efficiency, median incident turnaround latency, and safety invariant adherence
+                  under identical simulated failure topologies.
+                </>
+              )}
             </p>
           </div>
 

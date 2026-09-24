@@ -49,22 +49,38 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ report, onNavigateTa
   if (hasOR) {
     const orJev = metrics.arms["OR-JEV-SONNET"];
     const orBase = metrics.arms["OR-SONNET"];
-    const latRed = (((orBase.mean_duration_ms - orJev.mean_duration_ms) / orBase.mean_duration_ms) * 100).toFixed(1);
-    const costRed = (((orBase.total_cost_usd - orJev.total_cost_usd) / (orBase.total_cost_usd || 1)) * 100).toFixed(1);
+    const baseDuration = orBase.mean_duration_ms || 1;
+    const baseCost = orBase.total_cost_usd || 1;
+    const latRed = (((orBase.mean_duration_ms - orJev.mean_duration_ms) / baseDuration) * 100).toFixed(1);
+    const costRed = (((orBase.total_cost_usd - orJev.total_cost_usd) / baseCost) * 100).toFixed(1);
     latencyHeadline = `${(orJev.mean_duration_ms / 1000).toFixed(1)}s vs ${(orBase.mean_duration_ms / 1000).toFixed(1)}s`;
-    latencySubtitle = `OpenRouter: -${latRed}% speedup`;
+    latencySubtitle = `OpenRouter: ${Number(latRed) >= 0 ? `-${latRed}% speedup` : `+${Math.abs(Number(latRed))}% slower`}`;
     costHeadline = `$${orJev.total_cost_usd.toFixed(4)} vs $${orBase.total_cost_usd.toFixed(4)}`;
-    costSubtitle = `OpenRouter: -${costRed}% savings`;
+    costSubtitle = `OpenRouter: ${Number(costRed) >= 0 ? `-${costRed}% savings` : `+${Math.abs(Number(costRed))}% increase`}`;
   } else if (hasCF) {
     const cfJev = metrics.arms["CF-JEV-SONNET"];
     const cfBase = metrics.arms["CF-SONNET"];
-    const latRed = (((cfBase.mean_duration_ms - cfJev.mean_duration_ms) / cfBase.mean_duration_ms) * 100).toFixed(1);
-    const costRed = (((cfBase.total_cost_usd - cfJev.total_cost_usd) / (cfBase.total_cost_usd || 1)) * 100).toFixed(1);
+    const baseDuration = cfBase.mean_duration_ms || 1;
+    const baseCost = cfBase.total_cost_usd || 1;
+    const latRed = (((cfBase.mean_duration_ms - cfJev.mean_duration_ms) / baseDuration) * 100).toFixed(1);
+    const costRed = (((cfBase.total_cost_usd - cfJev.total_cost_usd) / baseCost) * 100).toFixed(1);
     latencyHeadline = `${(cfJev.mean_duration_ms / 1000).toFixed(2)}s vs ${(cfBase.mean_duration_ms / 1000).toFixed(2)}s`;
-    latencySubtitle = `Cloudflare: -${latRed}% speedup`;
+    latencySubtitle = `Cloudflare: ${Number(latRed) >= 0 ? `-${latRed}% speedup` : `+${Math.abs(Number(latRed))}% slower`}`;
     costHeadline = `$${cfJev.total_cost_usd.toFixed(4)} vs $${cfBase.total_cost_usd.toFixed(4)}`;
-    costSubtitle = `Cloudflare: -${costRed}% savings`;
+    costSubtitle = `Cloudflare: ${Number(costRed) >= 0 ? `-${costRed}% savings` : `+${Math.abs(Number(costRed))}% increase`}`;
   }
+
+  // Derive dynamic empirical takeaways
+  const hybArm = Object.values(metrics.arms).find((m) => m.arm.includes("JEV"));
+  const baseArm = Object.values(metrics.arms).find((m) => m.arm.includes("SONNET") && !m.arm.includes("JEV"));
+
+  const empiricalLatencySavings = hybArm && baseArm && baseArm.mean_duration_ms > 0
+    ? (((baseArm.mean_duration_ms - hybArm.mean_duration_ms) / baseArm.mean_duration_ms) * 100).toFixed(1)
+    : null;
+  const empiricalTokenSavings = hybArm && baseArm && baseArm.mean_tokens > 0
+    ? (((baseArm.mean_tokens - hybArm.mean_tokens) / baseArm.mean_tokens) * 100).toFixed(1)
+    : null;
+  const totalProhibited = Object.values(metrics.arms).reduce((acc, m) => acc + (m.prohibited_action_rate || 0), 0);
 
   const chartData = arms.map((arm) => {
     const data = metrics.arms[arm];
@@ -227,15 +243,29 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ report, onNavigateTa
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs leading-relaxed text-body">
           <div className="rounded-md bg-canvas p-4 border border-hairline">
             <span className="font-bold text-ink block mb-1 font-sans">1. Fast-Path Gating</span>
-            Jev resolves preliminary diagnostic triage steps without invoking full frontier reasoning loops, lowering latency by up to 68.9%.
+            {empiricalLatencySavings !== null ? (
+              Number(empiricalLatencySavings) >= 0
+                ? `Jev resolves preliminary diagnostic triage steps without invoking full frontier reasoning loops, lowering latency by ${empiricalLatencySavings}%.`
+                : `Observed latency delta between hybrid and baseline in this run is ${empiricalLatencySavings}%.`
+            ) : (
+              "Delegates preliminary diagnostic triage to Jev, invoking frontier models only upon handoff or high-risk actions."
+            )}
           </div>
           <div className="rounded-md bg-canvas p-4 border border-hairline">
             <span className="font-bold text-ink block mb-1 font-sans">2. Context Window Economy</span>
-            The hybrid architecture reduced token accumulation by 90.0%, preventing repetitive Kubernetes dump injections into Sonnet 5.
+            {empiricalTokenSavings !== null ? (
+              Number(empiricalTokenSavings) >= 0
+                ? `The hybrid architecture reduced token accumulation by ${empiricalTokenSavings}%, preventing repetitive Kubernetes dump injections into Sonnet 5.`
+                : `Token consumption delta between evaluated arms is ${empiricalTokenSavings}%.`
+            ) : (
+              "Pre-filters cluster diagnostic evidence to minimize context window bloat and prompt re-injections."
+            )}
           </div>
           <div className="rounded-md bg-canvas p-4 border border-hairline">
-            <span className="font-bold text-ink block mb-1 font-sans">3. Zero Safety Regression</span>
-            Both architectures strictly respected cluster safety invariants, maintaining zero prohibited destructive actions across all evaluated scenarios.
+            <span className="font-bold text-ink block mb-1 font-sans">3. Safety Invariants</span>
+            {totalProhibited === 0
+              ? "All architectures strictly respected cluster safety invariants, with zero prohibited destructive actions observed in this evaluation."
+              : `Invariant violations detected: prohibited action rate is ${(totalProhibited / (arms.length || 1)).toFixed(3)} across arms.`}
           </div>
         </div>
       </div>
