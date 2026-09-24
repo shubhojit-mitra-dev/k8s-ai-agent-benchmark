@@ -130,7 +130,7 @@ export const ArchitectureView: React.FC = () => {
           </div>
 
           <div className="rounded-lg bg-primary-soft/50 p-3 border border-primary/20 text-xs font-sans text-ink">
-            <span className="font-semibold text-primary-dark">Empirical Synergy:</span> Absorbs 70%+ of diagnostic steps at ultra-low cost ($0.15/MTok) and sub-200ms latency, routing complex diagnosis to Sonnet.
+            <span className="font-semibold text-primary-dark">Architectural Design Target:</span> Designed to absorb read-only diagnostic steps at low cost ($0.15/MTok) and sub-second latency, routing complex remediation synthesis to Sonnet.
           </div>
         </div>
       </div>
