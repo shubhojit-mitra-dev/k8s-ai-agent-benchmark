@@ -53,7 +53,9 @@ class JevOnlyAblationAgent(BaseAgent):
                 self.trajectory.termination_reason = TerminationReason.RESOLVED
                 break
 
-        self.trajectory.latency.total_latency_ms = (time.monotonic() - self.start_mono_time) * 1000.0
+        total_elapsed_ms = (time.monotonic() - self.start_mono_time) * 1000.0
+        simulated_total_ms = self.trajectory.latency.ai_latency_ms + self.trajectory.latency.tool_latency_ms
+        self.trajectory.latency.total_latency_ms = max(total_elapsed_ms, simulated_total_ms)
         return self.trajectory
 
 
@@ -116,5 +118,7 @@ class JevShadowAgent(BaseAgent):
                 self.trajectory.termination_reason = TerminationReason.RESOLVED
                 break
 
-        self.trajectory.latency.total_latency_ms = (time.monotonic() - self.start_mono_time) * 1000.0
+        total_elapsed_ms = (time.monotonic() - self.start_mono_time) * 1000.0
+        simulated_total_ms = self.trajectory.latency.ai_latency_ms + self.trajectory.latency.tool_latency_ms
+        self.trajectory.latency.total_latency_ms = max(total_elapsed_ms, simulated_total_ms)
         return self.trajectory
