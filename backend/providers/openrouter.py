@@ -20,7 +20,7 @@ class OpenRouterSonnetProvider(BaseProvider):
     def __init__(self, model_id: str, settings: BenchmarkSettings) -> None:
         super().__init__(model_id=model_id, provider_name="OpenRouter", settings=settings)
         self.api_key = settings.openrouter_api_key
-        self.base_url = "https://openrouter.ai/api/v1"
+        self.base_url = "https://openrouter.ai/api"
 
     async def call_sonnet_investigation(
         self,
@@ -69,7 +69,7 @@ class OpenRouterSonnetProvider(BaseProvider):
             async with httpx.AsyncClient(timeout=15.0) as client:
                 for attempt in range(2):
                     resp = await client.post(
-                        f"{self.base_url}/chat/completions", headers=headers, json=payload
+                        f"{self.base_url}/v1/chat/completions", headers=headers, json=payload
                     )
                     status_code = resp.status_code
                     if status_code == 200:
@@ -180,7 +180,7 @@ class OpenRouterSonnetProvider(BaseProvider):
             async with httpx.AsyncClient(timeout=15.0) as client:
                 for attempt in range(2):
                     resp = await client.post(
-                        f"{self.base_url}/chat/completions", headers=headers, json=payload
+                        f"{self.base_url}/v1/chat/completions", headers=headers, json=payload
                     )
                     status_code = resp.status_code
                     if status_code == 200:
@@ -195,8 +195,17 @@ class OpenRouterSonnetProvider(BaseProvider):
 
                         choice = data.get("choices", [{}])[0]
                         content = choice.get("message", {}).get("content", "{}")
-                        parsed = json.loads(content)
-                        sonnet_decision = SonnetDecision(**parsed)
+                        clean_content = content.strip()
+                        if clean_content.startswith("```"):
+                            clean_content = clean_content.split("\n", 1)[-1]
+                            if clean_content.endswith("```"):
+                                clean_content = clean_content.rsplit("```", 1)[0]
+                            clean_content = clean_content.strip()
+                        try:
+                            parsed = json.loads(clean_content)
+                            sonnet_decision = SonnetDecision(**parsed)
+                        except Exception as parse_err:
+                            raw_text = f"Parse error: {str(parse_err)} - Raw content: {content}" 
                         break
                     elif status_code in {408, 429, 500, 502, 503, 504} and attempt == 0:
                         retries += 1
@@ -259,7 +268,7 @@ class OpenRouterJevProvider(BaseProvider):
     def __init__(self, model_id: str, settings: BenchmarkSettings) -> None:
         super().__init__(model_id=model_id, provider_name="OpenRouter-Jev", settings=settings)
         self.api_key = settings.openrouter_api_key
-        self.base_url = "https://openrouter.ai/api/v1"
+        self.base_url = "https://openrouter.ai/api"
 
     async def call_jev_decision(
         self,
@@ -276,24 +285,39 @@ class OpenRouterJevProvider(BaseProvider):
             "Content-Type": "application/json",
         }
 
-        instructions = (
-            "Select the most useful next operational step supported by current incident evidence. "
-            "Questions: 1. next_step choice, 2. intervention_justified (0.0-1.0), "
-            "3. severity_score (1-5), 4. escalation_justified (0.0-1.0)."
-        )
-        prompt_data = {
-            "instructions": instructions,
-            "incident": incident_alert,
-            "evidence": accumulated_evidence,
-            "available_tools": available_tools,
-        }
+        # Build tools criteria map for Jev choice primitive
+        tool_criteria = {}
+        for t in available_tools:
+            tool_criteria[t] = f"Execute operational action or diagnostic {t}"
+        if "handoff_to_frontier" not in tool_criteria:
+            tool_criteria["handoff_to_frontier"] = "Escalate to Claude frontier reasoning model"
 
         payload = {
             "model": self.model_id,
-            "messages": [{"role": "user", "content": json.dumps(prompt_data)}],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.0,
-            "max_tokens": 256,
+            "state": {
+                "incident_alert": incident_alert,
+                "accumulated_evidence": accumulated_evidence,
+            },
+            "questions": {
+                "next_step": {
+                    "type": "choice",
+                    "instructions": "Select the most useful next operational diagnostic or remediation action",
+                    "criteria": tool_criteria,
+                },
+                "intervention_justified": {
+                    "type": "noul",
+                    "instructions": "Is an active cluster mutation or intervention justified at this step?",
+                },
+                "severity_score": {
+                    "type": "score",
+                    "instructions": "Rate overall incident severity from 1 (minor) to 5 (critical)",
+                    "criteria": ["1-Minor", "2-Low", "3-Medium", "4-High", "5-Critical"],
+                },
+                "escalation_justified": {
+                    "type": "noul",
+                    "instructions": "Does this incident exceed safe local automation and require frontier escalation?",
+                },
+            },
         }
 
         status_code = 500
@@ -308,23 +332,54 @@ class OpenRouterJevProvider(BaseProvider):
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 for attempt in range(2):
+                    # OpenRouter /api/alpha/decisions endpoint for decision models
                     resp = await client.post(
-                        f"{self.base_url}/chat/completions", headers=headers, json=payload
+                        f"{self.base_url}/alpha/decisions", headers=headers, json=payload
                     )
                     status_code = resp.status_code
                     if status_code == 200:
                         data = resp.json()
                         raw_text = redact_secrets(resp.text)
-                        routed_provider = data.get("provider", "Jev (routed)")
+                        routed_provider = data.get("provider", "TypeSafe")
                         usage = data.get("usage", {})
-                        inp_tokens = usage.get("prompt_tokens", 0)
-                        out_tokens = usage.get("completion_tokens", 0)
+                        inp_tokens = usage.get("input_tokens", 0)
+                        out_tokens = usage.get("output_tokens", 0)
                         rep_cost = usage.get("cost")
 
-                        choice = data.get("choices", [{}])[0]
-                        content = choice.get("message", {}).get("content", "{}")
-                        parsed = json.loads(content)
-                        jev_decision = JevDecision(**parsed)
+                        answers = data.get("answers", {})
+                        next_step_ans = answers.get("next_step", {})
+                        interv_ans = answers.get("intervention_justified", {})
+                        sev_ans = answers.get("severity_score", {})
+                        esc_ans = answers.get("escalation_justified", {})
+
+                        # Extract probabilities and margin
+                        probs = next_step_ans.get("probabilities", {})
+                        sorted_probs = sorted(probs.values(), reverse=True)
+                        p1 = sorted_probs[0] if len(sorted_probs) > 0 else 0.0
+                        p2 = sorted_probs[1] if len(sorted_probs) > 1 else 0.0
+
+                        choices_list = [
+                            JevChoiceOption(name=k, probability=v) for k, v in probs.items()
+                        ]
+
+                        sev_raw = sev_ans.get("score", 1.0)
+                        try:
+                            sev_int = int(round(float(sev_raw)))
+                        except Exception:
+                            sev_int = 1
+
+                        jev_decision = JevDecision(
+                            next_step=next_step_ans.get("choice", "inspect_pod"),
+                            selected_probability=p1,
+                            second_highest_probability=p2,
+                            margin=round(p1 - p2, 4),
+                            confidence=next_step_ans.get("confidence", p1),
+                            choices=choices_list,
+                            intervention_probability=interv_ans.get("noul", 0.0),
+                            severity_score=max(1, min(5, sev_int)),
+                            escalation_probability=esc_ans.get("noul", 0.0),
+                            raw_response=probs,
+                        )
                         break
                     elif status_code in {408, 429, 500, 502, 503, 504} and attempt == 0:
                         retries += 1
