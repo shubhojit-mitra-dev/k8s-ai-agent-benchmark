@@ -41,14 +41,16 @@ interface NavbarProps {
   activeTab: TabId;
   onTabChange: (tab: TabId) => void;
   status: "idle" | "running" | "connected";
+  runIds?: string[];
+  selectedRunId?: string;
+  onSelectRun?: (runId: string) => void;
 }
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "live", label: "Live Run", icon: Terminal },
-  { id: "architecture", label: "Architecture", icon: Layers },
   { id: "incidents", label: "Incidents (20)", icon: AlertTriangle },
   { id: "trajectories", label: "Trajectories", icon: GitCommit },
+  { id: "reports", label: "Scientific Report", icon: FileText },
   { id: "latency", label: "Latency", icon: Clock },
   { id: "quality", label: "Quality & Success", icon: CheckCircle2 },
   { id: "safety", label: "Safety", icon: ShieldAlert },
@@ -58,42 +60,89 @@ const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: 
   { id: "difficulty", label: "Difficulty Ladder", icon: TrendingUp },
   { id: "hybrid", label: "Hybrid Comparison", icon: Network },
   { id: "providers", label: "Provider Comparison", icon: Database },
+  { id: "architecture", label: "Architecture", icon: Layers },
+  { id: "live", label: "Live Console", icon: Terminal },
   { id: "raw", label: "Raw Data", icon: Database },
   { id: "history", label: "Run History", icon: History },
-  { id: "reports", label: "Scientific Report", icon: FileText },
 ];
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, status }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTab,
+  onTabChange,
+  status,
+  runIds = [],
+  selectedRunId = "",
+  onSelectRun,
+}) => {
   return (
-    <header className="sticky top-0 z-50 border-b border-surface-border bg-background/95 backdrop-blur-md">
-      <div className="flex h-16 items-center justify-between px-6">
+    <header className="sticky top-0 z-50 border-b border-hairline bg-canvas/95 backdrop-blur-md">
+      {/* Top Brand & Run Selector Bar */}
+      <div className="flex h-16 items-center justify-between px-6 border-b border-hairline-soft">
         <div className="flex items-center space-x-3">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center font-bold text-primary font-mono">
-            K8S
+          {/* Anthropic Radial Spike Glyph */}
+          <div className="h-8 w-8 rounded-lg bg-surface-dark flex items-center justify-center text-on-dark shrink-0 shadow-sm">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M12 2L13.8 8.8L20.5 7L15.7 12L20.5 17L13.8 15.2L12 22L10.2 15.2L3.5 17L8.3 12L3.5 7L10.2 8.8Z" />
+            </svg>
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-bold tracking-tight text-white">Kubernetes AI Agent Benchmark</span>
-              <span className="rounded bg-primary/20 px-2 py-0.5 text-xs font-mono font-medium text-primary border border-primary/30">
+            <div className="flex items-center space-x-2.5">
+              <span className="font-serif text-lg font-medium tracking-tight text-ink">
+                Kubernetes AI Agent Benchmark
+              </span>
+              <span className="rounded-pill bg-surface-card px-2.5 py-0.5 text-xs font-mono font-medium text-body-strong border border-hairline">
                 v1.0.0-research
               </span>
             </div>
-            <p className="text-xs text-slate-400">Jev + Sonnet 5 vs Sonnet 5 Alone Evaluation Platform</p>
+            <p className="text-xs text-muted font-sans">
+              Autonomous Incident Response: Jev + Claude Sonnet 5 vs Claude Sonnet 5 Alone
+            </p>
           </div>
         </div>
 
+        {/* Right side: Run Selector & System Status */}
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 text-xs font-mono">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full ${
-              status === "running" ? "bg-amber-400 animate-pulse" :
-              status === "connected" ? "bg-emerald-400" : "bg-slate-500"
-            }`} />
-            <span className="text-slate-300 capitalize">{status}</span>
+          {runIds.length > 0 && (
+            <div className="flex items-center space-x-2 text-xs">
+              <label htmlFor="run-select" className="text-muted font-medium">
+                Active Run:
+              </label>
+              <select
+                id="run-select"
+                value={selectedRunId}
+                onChange={(e) => onSelectRun && onSelectRun(e.target.value)}
+                className="rounded-md border border-hairline bg-surface-card px-3 py-1.5 font-mono text-xs text-ink focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                {runIds.map((id) => (
+                  <option key={id} value={id}>
+                    {id.includes("1790253930")
+                      ? `Run ${id} (Live OpenRouter Sonnet 5 + Jev)`
+                      : id.includes("1790199162")
+                      ? `Run ${id} (4-Arm Cloudflare + OpenRouter)`
+                      : `Run ${id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-2 text-xs font-mono bg-surface-card px-3 py-1.5 rounded-md border border-hairline">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                status === "running"
+                  ? "bg-warning animate-pulse"
+                  : status === "connected"
+                  ? "bg-success"
+                  : "bg-muted-soft"
+              }`}
+            />
+            <span className="text-body-strong capitalize">{status}</span>
           </div>
         </div>
       </div>
 
-      <nav className="flex overflow-x-auto border-t border-surface-border/50 px-4 py-1.5 scrollbar-thin">
+      {/* Sub-nav: Editorial Category Tabs */}
+      <nav className="flex overflow-x-auto px-6 py-2 scrollbar-none space-x-1.5 bg-canvas">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -101,13 +150,13 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, status }
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex items-center space-x-2 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`flex items-center space-x-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                 isActive
-                  ? "bg-primary/10 text-primary border border-primary/30"
-                  : "text-slate-400 hover:bg-surface-raised hover:text-slate-200"
+                  ? "bg-surface-card text-ink font-semibold border border-hairline shadow-sm"
+                  : "text-muted hover:bg-surface-soft hover:text-ink border border-transparent"
               }`}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon className={`h-3.5 w-3.5 ${isActive ? "text-primary" : "text-muted-soft"}`} />
               <span>{tab.label}</span>
             </button>
           );
